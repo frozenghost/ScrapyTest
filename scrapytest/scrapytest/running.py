@@ -1,2 +1,8 @@
 from scrapy.cmdline import execute
-execute(['scrapy','runspider', 'e:\\PythonProject\\ScrapyTest\\scrapytest\\scrapytest\\spiders\\testspider.py'])
+import os
+path = os.path.abspath('.\\scrapytest\\scrapytest\\spiders\\testspider.py')
+print(path)
+try:
+    execute(['scrapy','runspider', path])
+finally:
+    pass
