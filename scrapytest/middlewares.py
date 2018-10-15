@@ -11,6 +11,7 @@ from logging import getLogger
 import time
 import random
 import base64
+import re
 from settings import PROXIES
 
 
@@ -41,8 +42,9 @@ class SeleniumMiddleware():
                 'name': cookie_name,
                 'value': cookie_value
             })
-        time.sleep(random.randint(1, 9))
+        time.sleep(random.randint(1, 7))
         page = request.meta.get('page', 1)
+        need = True
         try:
             self.browser.get(request.url)
             if page > 1:
@@ -53,23 +55,39 @@ class SeleniumMiddleware():
                     EC.element_to_be_clickable(
                         (By.CSS_SELECTOR,
                          '#resultList div.p_in > span.og_but')))
+                max_page = self.browser.find_element_by_xpath(
+                    '(//div[@id="resultList"]//div[@class="p_in"]//span[@class="td"])[1]'
+                ).text
+                match = re.search('[1-9]\\d*', max_page)
+                if (match):
+                    max_page = match.group()
+                need = int(max_page) >= page
                 input.clear()
                 input.send_keys(page)
-                time.sleep(random.randint(0, 9))
-                submit.click()
-            self.wait.until(
-                EC.text_to_be_present_in_element(
-                    (By.CSS_SELECTOR, '#resultList div.rt > span.dw_c_orange'),
-                    str(page)))
-            self.wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
-                                                '#resultList .el')))
-            return HtmlResponse(
-                url=request.url,
-                body=self.browser.page_source,
-                request=request,
-                encoding='utf-8',
-                status=200)
+                time.sleep(random.randint(1, 7))
+                if (need):
+                    submit.click()
+                    self.wait.until(
+                        EC.text_to_be_present_in_element(
+                            (By.CSS_SELECTOR,
+                             '#resultList div.rt > span.dw_c_orange'),
+                            str(page)))
+                    self.wait.until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR,
+                                                        '#resultList .el')))
+            if (need):
+                return HtmlResponse(
+                    url=request.url,
+                    body=self.browser.page_source,
+                    request=request,
+                    encoding='utf-8',
+                    status=200)
+            else:
+                return HtmlResponse(
+                    url=request.url,
+                    request=request,
+                    encoding='utf-8',
+                    status=200)
         except TimeoutException:
             return HtmlResponse(url=request.url, status=500, request=request)
 
