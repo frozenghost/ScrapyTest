@@ -14,15 +14,16 @@ import random
 import scrapy
 
 
-class Fojobspider(Spider):
-    name = "fojob"
-    allowed_domains = ["www.51job.com"]
-    base_url = "https://search.51job.com/list/020000,000000,0000,00,9,%02d,%s,2,1.html?lang=c&stype=1&postchannel=0000&workyear=99&cotype=99&degreefrom=99&jobterm=99&companysize=99%s&lonlat=0%%2C0&radius=-1&ord_field=0&confirmdate=9&fromType=&dibiaoid=0&address=&line=&specialarea=00&from=&welfare="
+class Liepinspider(Spider):
+    name = "liepin"
+    displayname = '猎聘'
+    allowed_domains = ["www.liepin.com"]
+    base_url = "https://www.liepin.com/zhaopin/?ckid=9a3c3f6ae39c891b&fromSearchBtn=2&init=-1&sfrom=click-pc_homepage-centre_searchbox-search_new&flushckid=1&dqs=020&curPage=0&degradeFlag=0%s&key=%s&headckid=8f96e572ab75696a&d_pageSize=40&siTag=LVCXL87NN2EpVFUH8QYgiQ~r3i1HcfrfE3VRWBaGW6LoA&d_headId=40efa97cbb8f79744109ade811cde239&d_ckId=7a3f32c501149efa365d5baa1b674be9&d_sfrom=search_fp&d_curPage=0"
 
     custom_settings = {
         'KEYWORDS': ['.net'],
-        'MAX_PAGE': 100,
-        'SALARY_RANGE': [FO_Salary.S_20K_30k, FO_Salary.S_30k_40k]
+        'MAX_PAGE': 50,
+        'SALARY_RANGE': ['20$30', '30$50', '50$100', '100$999']
     }
 
     def __init__(self, timeout=None, service_args=[]):
@@ -40,10 +41,10 @@ class Fojobspider(Spider):
     def start_requests(self):
         for keyword in self.custom_settings['KEYWORDS']:  # 职位关键字
             for salary in self.custom_settings['SALARY_RANGE']:  # 薪资范围
-                for page in range(1, 10):  # 取前10页数据
-                    url = self.base_url % (salary.value, quote(keyword), '' if
-                                           (salary != FO_Salary.ALL) else
-                                           '&providesalary=99')
+                for page in range(1, self.custom_settings['MAX_PAGE']):
+                    url = self.base_url % ('' if (salary == '') else
+                                           ('&salary=' + quote(salary)),
+                                           quote(keyword))
                     yield scrapy.Request(
                         url=url,
                         callback=self.parse,
@@ -51,25 +52,30 @@ class Fojobspider(Spider):
                         dont_filter=True)
 
     def parse(self, response):
-        products = response.xpath(
-            '//div[@id="resultList"]//div[@class="el" or @class="el mk"]')
+        products = response.xpath('//ul[@class="sojob-list"]//li')
         for product in products:
             item = JobItem()
-            item['name'] = ''.join(
-                product.xpath('.//p[contains(@class, "t1")]//span//a/@title').
-                extract()).strip()
-            item['company'] = ''.join(
-                product.xpath('.//span[contains(@class, "t2")]//a/@title').
-                extract()).strip()
+            item['name'] = product.xpath(
+                './/div[@class="sojob-item-main clearfix"]//div[@class="job-info"]//h3//a//text()'
+            ).extract_first().strip()
+            item['company'] = product.xpath(
+                './/div[@class="sojob-item-main clearfix"]//div[@class="company-info nohover"]//p[@class="company-name"]//a//text()'
+            ).extract_first()
             item['area'] = product.xpath(
-                './/span[contains(@class, "t3")]//text()').extract_first()
+                './/div[@class="sojob-item-main clearfix"]//div[@class="job-info"]//p[@class="condition clearfix"]//a[@class="area"]//text()'
+            ).extract_first()
             item['salary'] = product.xpath(
-                './/span[contains(@class, "t4")]//text()').extract_first()
+                './/div[@class="sojob-item-main clearfix"]//div[@class="job-info"]//p[@class="condition clearfix"]//span[@class="text-warning"]//text()'
+            ).extract_first()
             item['publishdate'] = product.xpath(
-                './/span[contains(@class, "t5")]//text()').extract_first()
+                './/div[@class="sojob-item-main clearfix"]//div[@class="job-info"]//p[@class="time-info clearfix"]//time/@title'
+            ).extract_first()
             item['link'] = product.xpath(
-                './/p[contains(@class, "t1")]//span//a/@href').extract_first()
-            item['source'] = self.name
+                './/div[@class="sojob-item-main clearfix"]//div[@class="job-info"]//h3//a/@href'
+            ).extract_first()
+            if(not item['link'].startswith('https')):
+                item['link'] = 'https://www.liepin.com' + item['link']
+            item['source'] = self.displayname
             item['downloaddate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             yield item
 

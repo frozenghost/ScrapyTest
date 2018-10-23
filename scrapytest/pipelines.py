@@ -14,7 +14,7 @@ class ScrapytestPipeline(object):
             host='localhost',
             user='root',
             passwd='root',
-            db='scrapy',
+            db='flask',
             charset='utf8',
             port=3306)
         cur = con.cursor()
@@ -46,11 +46,11 @@ class FojobPipeline(object):
         cur = con.cursor()
         keys = item.keys()
         columns = ','.join(keys)
-        sql = "insert into job(%s) values(%s)"
+        sql = "insert into %s(%s) values(%s)"
         lis = ','.join(
             map(lambda x: '\'' + (item[x] if (item[x] != None) else '') + '\'',
                 keys))
-        sql = sql % (columns, lis)
+        sql = sql % (item.collection, columns, lis)
         cur.execute(sql)
         con.commit()
         cur.close()

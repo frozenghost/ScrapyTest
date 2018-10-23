@@ -22,12 +22,12 @@ class SeleniumMiddleware():
     '''
 
     def process_request(self, request, spider):
+        for cookie_name, cookie_value in request.cookies.items():
+            spider.browser.add_cookie({
+                'name': cookie_name,
+                'value': cookie_value
+            })
         if (spider.name == 'fojob'):
-            for cookie_name, cookie_value in request.cookies.items():
-                spider.browser.add_cookie({
-                    'name': cookie_name,
-                    'value': cookie_value
-                })
             time.sleep(random.randint(1, 7))  # 随机等待
             page = request.meta.get('page', 1)
             need = True  # 最大页数是否大于请求页数
@@ -74,6 +74,37 @@ class SeleniumMiddleware():
                         request=request,
                         encoding='utf-8',
                         status=200)
+            except TimeoutException:
+                return HtmlResponse(
+                    url=request.url, status=500, request=request)
+        elif (spider.name == 'liepin'):
+            spider.browser.get(request.url)
+            time.sleep(random.randint(1, 5))  # 随机等待
+            page = request.meta.get('page', 1)
+            try:
+                if page > 1:  # 超过第一页，那么寻找导航条，跳转至对应的页码
+                    input = spider.wait.until(  # 输入框
+                        EC.presence_of_element_located((
+                            By.CSS_SELECTOR,
+                            'div.pagerbar > span.addition > span.redirect > input')))
+                    submit = spider.wait.until(  # 按钮
+                        EC.element_to_be_clickable(
+                            (By.CSS_SELECTOR,
+                             'div.pagerbar > span.addition > span.redirect > a')))
+                    input.clear()
+                    input.send_keys(page)
+                    time.sleep(random.randint(1, 3))
+                    submit.click()
+                spider.wait.until(
+                    EC.presence_of_element_located(
+                        (By.CSS_SELECTOR, 'div.pagerbar > span.addition > span.redirect > a')))
+                return HtmlResponse(
+                    url=request.url,
+                    body=spider.browser.page_source,
+                    request=request,
+                    encoding='utf-8',
+                    status=200)
+
             except TimeoutException:
                 return HtmlResponse(
                     url=request.url, status=500, request=request)
